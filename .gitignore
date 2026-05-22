@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+
+# Local video/data files
+backend/uploads/
+backend/outputs/
+data/
+*.mp4
+*.mov
+*.m4v
+*.avi
+
+# Env files
+.env
+.env.local
+
+# OS/editor
+.DS_Store
+Thumbs.db

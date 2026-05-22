@@ -1,0 +1,37 @@
+---
+description: Video analysis algorithm rules for badminton motion/dead-interval detection
+globs:
+  - "backend/services/**/*.py"
+alwaysApply: false
+---
+
+The goal of the video analysis layer is to help detect badminton active rallies vs dead intervals.
+
+Start simple:
+- Do not use AI/ML models yet.
+- Do not use audio in v1.
+- Do not attempt shuttle detection in v1.
+- First compute visual motion score using sampled frames.
+
+Motion analysis v1:
+- Read frames using OpenCV.
+- Sample frames at a configurable interval, such as every 0.5 seconds.
+- Resize frames before comparison for speed.
+- Convert frames to grayscale.
+- Compute absolute difference between consecutive sampled frames.
+- Normalize the motion score so it is easy to compare across videos.
+- Return one motion score per sampled timestamp.
+
+Important:
+- Make the algorithm easy to debug.
+- Return intermediate signal data instead of only final labels.
+- Prefer inspectable values over black-box logic.
+- Later, detected active/dead segments should be derived from motionSeries using thresholds and smoothing.
+
+Future ideas, but do not implement unless asked:
+- Court ROI selection
+- Audio energy timeline
+- Optical flow
+- Pose detection
+- Custom AI model
+- User correction / labeling workflow

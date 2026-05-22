@@ -1,0 +1,41 @@
+---
+description: Overall project rules for badminton-signal-explorer
+alwaysApply: true
+---
+
+You are helping build badminton-signal-explorer, a local developer research tool for analyzing badminton videos.
+
+Goal:
+Build a local web app that allows the user to upload a badminton video, analyze frame-level motion signals, and visualize possible active/dead intervals.
+
+Tech stack:
+- Frontend: React + Vite + TypeScript
+- Backend: Python + FastAPI
+- Video processing: OpenCV + NumPy
+- Charts/timeline: Recharts or Plotly
+
+Architecture:
+- Keep frontend and backend separated.
+- Frontend handles upload UI, video preview, custom timeline scrubber, charts, and displaying analysis results.
+- Backend handles video upload, frame sampling, metadata extraction, motion score calculation, and segment detection.
+- Do not use a database yet.
+- Do not add authentication yet.
+- Do not add deployment setup yet.
+- Do not add AI/ML models yet.
+- Optimize for fast experimentation and learning.
+
+MVP scope:
+1. Upload video
+2. Backend samples frames
+3. Backend computes motion score over time
+4. Frontend shows video player
+5. Frontend shows custom scrubber/timeline
+6. Frontend shows motion score chart
+7. Frontend shows timestamp + motion score table
+
+General coding principles:
+- Do not over-engineer.
+- Prefer simple, readable code.
+- Add comments when the logic is educational or non-obvious.
+- Keep code modular, but avoid premature abstraction.
+- Preserve working behavior unless explicitly asked to change it.

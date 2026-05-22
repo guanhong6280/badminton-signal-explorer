@@ -1,0 +1,73 @@
+---
+description: Backend rules for FastAPI + OpenCV analysis service
+globs:
+  - "backend/**/*.py"
+alwaysApply: false
+---
+
+Backend stack:
+- Python
+- FastAPI
+- OpenCV
+- NumPy
+
+Backend responsibilities:
+- Accept uploaded video files.
+- Save uploaded video temporarily for analysis.
+- Extract video metadata.
+- Sample frames at a configurable interval.
+- Compute frame-difference motion scores.
+- Return structured JSON to frontend.
+- Keep uploaded videos out of Git.
+
+Architecture principles:
+- Keep FastAPI route handlers thin.
+- Put analysis logic in service files.
+- Do not place OpenCV-heavy logic directly in main.py.
+- Prefer pure functions for analysis logic when possible.
+- Make output easy to debug and visualize.
+- Avoid permanent storage unless explicitly requested.
+
+Suggested backend structure:
+backend/
+- main.py
+- requirements.txt
+- services/
+  - video_metadata.py
+  - frame_sampler.py
+  - motion_analyzer.py
+  - segment_detector.py
+- uploads/
+- outputs/
+
+API shape:
+POST /api/analyze
+- Accepts a video file upload.
+- Returns metadata, motionSeries, and later predictedSegments.
+
+Preferred response shape:
+{
+  "videoId": "...",
+  "metadata": {
+    "durationSeconds": 0,
+    "fps": 0,
+    "width": 0,
+    "height": 0,
+    "sampledFps": 0
+  },
+  "motionSeries": [
+    {
+      "time": 0,
+      "motionScore": 0
+    }
+  ],
+  "predictedSegments": []
+}
+
+Do not add:
+- Database
+- Authentication
+- Celery
+- Redis
+- Cloud storage
+- Docker/deployment setup yet

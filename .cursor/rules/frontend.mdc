@@ -1,0 +1,51 @@
+---
+description: Frontend rules for React + Vite + TypeScript
+globs:
+  - "frontend/**/*.{ts,tsx,css}"
+alwaysApply: false
+---
+
+Frontend stack:
+- React
+- Vite
+- TypeScript
+
+Frontend responsibilities:
+- Upload video file to backend.
+- Display uploaded video in a video player.
+- Build a custom timeline/scrubber under the video.
+- Let the user click or drag the timeline to update video.currentTime.
+- Display motion score chart.
+- Display timestamp + motion score table.
+- Display predicted active/dead intervals later.
+
+Component principles:
+- Use clean, small React components.
+- Keep video playback logic separate from chart rendering.
+- Keep API calls in a dedicated api/ folder.
+- Keep shared TypeScript types in a types/ folder.
+- Use React refs for direct video control.
+- Avoid global state libraries for now.
+- Avoid complex routing for now.
+
+Suggested frontend structure:
+frontend/src/
+- App.tsx
+- components/
+  - VideoUploader.tsx
+  - VideoPlayer.tsx
+  - VideoTimeline.tsx
+  - MotionChart.tsx
+  - AnalysisTable.tsx
+- api/
+  - analysisApi.ts
+- types/
+  - analysis.ts
+
+Do not add:
+- Redux
+- Zustand
+- React Router
+- Authentication UI
+- User account features
+- Deployment-specific logic
