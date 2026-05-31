@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from services.frame_sampler import sample_frames
+from services.roi import Roi
 
 
 @dataclass
@@ -15,6 +16,7 @@ def compute_motion_series(
     sample_interval_seconds: float = 0.5,
     resize_width: int = 320,
     on_sample_progress: Callable[[int], None] | None = None,
+    roi: Roi | None = None,
 ) -> list[MotionPoint]:
     """
     Compare consecutive sampled grayscale frames and return a normalized
@@ -28,6 +30,7 @@ def compute_motion_series(
         video_path,
         sample_interval_seconds=sample_interval_seconds,
         resize_width=resize_width,
+        roi=roi,
     ):
         if previous_frame is None:
             previous_frame = frame

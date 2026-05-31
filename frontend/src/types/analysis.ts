@@ -21,6 +21,13 @@ export interface Segment {
   label: string;
 }
 
+export interface RoiRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /** Completed job payload from GET /api/videos/jobs/{job_id}. */
 export interface JobAnalysisResult {
   video_id: string;
@@ -28,6 +35,7 @@ export interface JobAnalysisResult {
   metadata: ApiVideoMetadata;
   motion_samples: MotionSample[];
   segments: Segment[];
+  roi?: RoiRect | null;
 }
 
 export interface JobState {
@@ -67,4 +75,5 @@ export interface AnalysisResult {
   metadata: VideoMetadata;
   motionSeries: MotionPoint[];
   predictedSegments: PredictedSegment[];
+  roi?: RoiRect | null;
 }

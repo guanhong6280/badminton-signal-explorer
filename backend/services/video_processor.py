@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from services.job_store import complete_job, fail_job, update_job
 from services.motion_analyzer import MotionPoint, compute_motion_series
+from services.roi import Roi, clamp_roi_to_frame
 from services.segment_detector import detect_segments
 from services.video_metadata import extract_video_metadata
 
@@ -16,8 +17,9 @@ def _build_result(
     metadata,
     motion_series: list[MotionPoint],
     predicted_segments,
+    roi: Roi | None = None,
 ) -> dict:
-    return {
+    result: dict = {
         "video_id": video_id,
         "video_url": f"/api/videos/{video_id}{suffix}",
         "metadata": {
@@ -40,6 +42,9 @@ def _build_result(
             for segment in predicted_segments
         ],
     }
+    if roi is not None:
+        result["roi"] = roi.to_dict()
+    return result
 
 
 def process_video_job(
@@ -47,6 +52,7 @@ def process_video_job(
     video_path: str,
     video_id: str,
     suffix: str,
+    roi: Roi | None = None,
 ) -> None:
     """
     Run analysis in a background task. Updates job progress; never raises.
@@ -93,13 +99,25 @@ def process_video_job(
             path,
             sample_interval_seconds=SAMPLE_INTERVAL_SECONDS,
             on_sample_progress=lambda i: on_motion_progress(i, estimated_samples),
+            roi=roi,
         )
 
         set_progress(85, "Detecting segments.")
         predicted_segments = detect_segments(motion_series)
 
+        effective_roi = roi
+        if roi is not None and metadata.width > 0 and metadata.height > 0:
+            effective_roi = clamp_roi_to_frame(
+                roi, metadata.width, metadata.height
+            )
+
         result = _build_result(
-            video_id, suffix, metadata, motion_series, predicted_segments
+            video_id,
+            suffix,
+            metadata,
+            motion_series,
+            predicted_segments,
+            roi=effective_roi,
         )
         complete_job(job_id, result)
     except Exception as exc:

@@ -3,11 +3,14 @@ from typing import Iterator
 import cv2
 import numpy as np
 
+from services.roi import Roi, apply_roi_to_frame
+
 
 def sample_frames(
     video_path: str,
     sample_interval_seconds: float,
     resize_width: int = 320,
+    roi: Roi | None = None,
 ) -> Iterator[tuple[float, np.ndarray]]:
     """
     Yield (timestamp_seconds, grayscale_frame) at a fixed time interval.
@@ -32,7 +35,8 @@ def sample_frames(
 
             timestamp = frame_index / fps
             if timestamp + 1e-9 >= next_sample_time:
-                gray = _to_resized_grayscale(frame, resize_width)
+                cropped = apply_roi_to_frame(frame, roi)
+                gray = _to_resized_grayscale(cropped, resize_width)
                 yield timestamp, gray
                 next_sample_time += sample_interval_seconds
 

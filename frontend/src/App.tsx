@@ -11,7 +11,7 @@ import { MotionChart } from "./components/MotionChart";
 import { VideoPlayer } from "./components/VideoPlayer";
 import { VideoTimeline } from "./components/VideoTimeline";
 import { VideoUploader } from "./components/VideoUploader";
-import type { AnalysisResult, JobState, JobStatus } from "./types/analysis";
+import type { AnalysisResult, JobState, JobStatus, RoiRect } from "./types/analysis";
 import "./App.css";
 
 const ACTIVE_JOB_STATUSES: JobStatus[] = ["queued", "processing"];
@@ -24,7 +24,9 @@ function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const pollGenerationRef = useRef(0);
 
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [localVideoUrl, setLocalVideoUrl] = useState<string | null>(null);
+  const [roi, setRoi] = useState<RoiRect | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -34,6 +36,7 @@ function App() {
 
   const durationSeconds = analysis?.metadata.durationSeconds ?? 0;
   const videoSrc = analysis?.videoUrl ?? localVideoUrl;
+  const canSelectRoi = Boolean(selectedFile && localVideoUrl && !isProcessing);
 
   const seekTo = (time: number) => {
     setCurrentTime(time);
@@ -93,13 +96,14 @@ function App() {
     };
   }, [jobId]);
 
-  const handleFileSelected = async (file: File) => {
+  const handleFileSelected = (file: File) => {
     setError(null);
-    setIsProcessing(true);
     setAnalysis(null);
     setJobState(null);
     setJobId(null);
     setCurrentTime(0);
+    setRoi(null);
+    setSelectedFile(file);
     pollGenerationRef.current += 1;
 
     const objectUrl = URL.createObjectURL(file);
@@ -109,9 +113,23 @@ function App() {
       }
       return objectUrl;
     });
+  };
+
+  const handleAnalyze = async () => {
+    if (!selectedFile) {
+      return;
+    }
+
+    setError(null);
+    setIsProcessing(true);
+    setAnalysis(null);
+    setJobState(null);
+    setJobId(null);
+    setCurrentTime(0);
+    pollGenerationRef.current += 1;
 
     try {
-      const initialJob = await startVideoAnalysis(file);
+      const initialJob = await startVideoAnalysis(selectedFile, roi);
       setJobState(initialJob);
       setJobId(initialJob.job_id);
 
@@ -138,16 +156,19 @@ function App() {
     <main className="app">
       <header className="app-header">
         <h1>Badminton Signal Explorer</h1>
-        <p>Upload a video, sample frames, and inspect motion over time.</p>
+        <p>Upload a video, select the court area, and inspect motion over time.</p>
       </header>
 
       {error && <p className="error-banner">{error}</p>}
 
       <VideoUploader
         onFileSelected={handleFileSelected}
-        isLoading={isProcessing}
+        onAnalyze={handleAnalyze}
+        hasVideo={selectedFile !== null}
+        isProcessing={isProcessing}
         progress={showProgress ? jobState.progress : 0}
         progressMessage={showProgress ? jobState.message : undefined}
+        showNoRoiWarning={selectedFile !== null && !roi && !isProcessing}
       />
 
       <div className="layout-grid">
@@ -156,6 +177,10 @@ function App() {
           src={videoSrc}
           currentTime={currentTime}
           onTimeUpdate={setCurrentTime}
+          roi={roi}
+          onRoiChange={setRoi}
+          roiSelectionEnabled={canSelectRoi}
+          roiDisabled={isProcessing}
         />
 
         <VideoTimeline

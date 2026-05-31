@@ -2,11 +2,12 @@ import shutil
 import uuid
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from services.job_store import create_job, get_job, job_to_response, update_job
+from services.roi import parse_roi_json
 from services.video_processor import process_video_job, run_sync_analysis
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -46,16 +47,29 @@ def health() -> dict[str, str]:
 async def analyze_video_async(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    roi: str | None = Form(None),
 ) -> dict:
     """
     Upload a video and start analysis in the background.
     Poll GET /api/videos/jobs/{job_id} for progress and the final result.
+
+    Optional form field ``roi``: JSON string ``{"x", "y", "width", "height"}``
+    in original video pixel coordinates.
     """
+    try:
+        parsed_roi = parse_roi_json(roi)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     video_id, upload_path, suffix = _save_upload(file)
 
     job = create_job()
     job_id = job["job_id"]
-    update_job(job_id, video_path=str(upload_path))
+    update_job(
+        job_id,
+        video_path=str(upload_path),
+        roi=parsed_roi.to_dict() if parsed_roi else None,
+    )
 
     background_tasks.add_task(
         process_video_job,
@@ -63,6 +77,7 @@ async def analyze_video_async(
         str(upload_path),
         video_id,
         suffix,
+        parsed_roi,
     )
 
     return job_to_response(get_job(job_id))

@@ -2,6 +2,7 @@ import type {
   AnalysisResult,
   JobAnalysisResult,
   JobState,
+  RoiRect,
 } from "../types/analysis";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
@@ -39,12 +40,19 @@ export function jobResultToAnalysisResult(result: JobAnalysisResult): AnalysisRe
       endTime: segment.end_time,
       label: segment.label,
     })),
+    roi: result.roi ?? null,
   };
 }
 
-export async function startVideoAnalysis(file: File): Promise<JobState> {
+export async function startVideoAnalysis(
+  file: File,
+  roi?: RoiRect | null,
+): Promise<JobState> {
   const formData = new FormData();
   formData.append("file", file);
+  if (roi) {
+    formData.append("roi", JSON.stringify(roi));
+  }
 
   const response = await fetch(resolveApiUrl("/api/videos/analyze"), {
     method: "POST",
