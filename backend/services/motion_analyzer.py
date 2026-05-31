@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Callable
 
 from services.frame_sampler import sample_frames
 
@@ -13,6 +14,7 @@ def compute_motion_series(
     video_path: str,
     sample_interval_seconds: float = 0.5,
     resize_width: int = 320,
+    on_sample_progress: Callable[[int], None] | None = None,
 ) -> list[MotionPoint]:
     """
     Compare consecutive sampled grayscale frames and return a normalized
@@ -20,6 +22,7 @@ def compute_motion_series(
     """
     raw_scores: list[tuple[float, float]] = []
     previous_frame = None
+    sample_index = 0
 
     for timestamp, frame in sample_frames(
         video_path,
@@ -29,12 +32,15 @@ def compute_motion_series(
         if previous_frame is None:
             previous_frame = frame
             raw_scores.append((timestamp, 0.0))
-            continue
+        else:
+            diff = abs(frame.astype("float32") - previous_frame.astype("float32"))
+            raw_score = float(diff.mean())
+            raw_scores.append((timestamp, raw_score))
+            previous_frame = frame
 
-        diff = abs(frame.astype("float32") - previous_frame.astype("float32"))
-        raw_score = float(diff.mean())
-        raw_scores.append((timestamp, raw_score))
-        previous_frame = frame
+        if on_sample_progress is not None:
+            on_sample_progress(sample_index)
+        sample_index += 1
 
     if not raw_scores:
         return []

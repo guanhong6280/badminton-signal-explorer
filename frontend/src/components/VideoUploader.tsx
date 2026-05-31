@@ -1,9 +1,16 @@
 interface VideoUploaderProps {
   onFileSelected: (file: File) => void;
   isLoading: boolean;
+  progress?: number;
+  progressMessage?: string;
 }
 
-export function VideoUploader({ onFileSelected, isLoading }: VideoUploaderProps) {
+export function VideoUploader({
+  onFileSelected,
+  isLoading,
+  progress = 0,
+  progressMessage,
+}: VideoUploaderProps) {
   return (
     <section className="panel uploader-panel">
       <h2>Upload video</h2>
@@ -18,10 +25,29 @@ export function VideoUploader({ onFileSelected, isLoading }: VideoUploaderProps)
             if (file) {
               onFileSelected(file);
             }
+            event.target.value = "";
           }}
         />
-        <span>{isLoading ? "Analyzing..." : "Choose video file"}</span>
+        <span>{isLoading ? "Processing..." : "Choose video file"}</span>
       </label>
+
+      {isLoading && (
+        <div className="analysis-progress" role="status" aria-live="polite">
+          <div className="analysis-progress-header">
+            <span>Analyzing video…</span>
+            <span>{Math.round(progress)}%</span>
+          </div>
+          <div className="analysis-progress-track">
+            <div
+              className="analysis-progress-fill"
+              style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+            />
+          </div>
+          {progressMessage && (
+            <p className="analysis-progress-message">{progressMessage}</p>
+          )}
+        </div>
+      )}
     </section>
   );
 }

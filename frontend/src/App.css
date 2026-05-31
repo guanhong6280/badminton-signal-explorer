@@ -120,3 +120,35 @@ tbody tr:hover {
   padding: 0.75rem 1rem;
   margin-bottom: 1rem;
 }
+
+.analysis-progress {
+  margin-top: 1rem;
+}
+
+.analysis-progress-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.analysis-progress-track {
+  height: 0.5rem;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.analysis-progress-fill {
+  height: 100%;
+  background: #3b82f6;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.analysis-progress-message {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}

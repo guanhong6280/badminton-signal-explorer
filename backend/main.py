@@ -2,17 +2,16 @@ import shutil
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
-from services.motion_analyzer import compute_motion_series
-from services.segment_detector import detect_segments
-from services.video_metadata import extract_video_metadata
+from services.job_store import create_job, get_job, job_to_response, update_job
+from services.video_processor import process_video_job, run_sync_analysis
 
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
 OUTPUT_DIR = BASE_DIR / "outputs"
-SAMPLE_INTERVAL_SECONDS = 0.5
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -28,63 +27,66 @@ app.add_middleware(
 )
 
 
+def _save_upload(file: UploadFile) -> tuple[str, Path, str]:
+    """Return (video_id, upload_path, suffix)."""
+    video_id = str(uuid.uuid4())
+    suffix = Path(file.filename or "video.mp4").suffix or ".mp4"
+    upload_path = UPLOAD_DIR / f"{video_id}{suffix}"
+    with upload_path.open("wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    return video_id, upload_path, suffix
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.post("/api/videos/analyze")
+async def analyze_video_async(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+) -> dict:
+    """
+    Upload a video and start analysis in the background.
+    Poll GET /api/videos/jobs/{job_id} for progress and the final result.
+    """
+    video_id, upload_path, suffix = _save_upload(file)
+
+    job = create_job()
+    job_id = job["job_id"]
+    update_job(job_id, video_path=str(upload_path))
+
+    background_tasks.add_task(
+        process_video_job,
+        job_id,
+        str(upload_path),
+        video_id,
+        suffix,
+    )
+
+    return job_to_response(get_job(job_id))
+
+
+@app.get("/api/videos/jobs/{job_id}")
+def get_video_job(job_id: str) -> dict:
+    job = get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job_to_response(job)
+
+
 @app.post("/api/analyze")
 async def analyze_video(file: UploadFile = File(...)) -> dict:
-    video_id = str(uuid.uuid4())
-    suffix = Path(file.filename or "video.mp4").suffix or ".mp4"
-    upload_path = UPLOAD_DIR / f"{video_id}{suffix}"
-
-    with upload_path.open("wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    metadata = extract_video_metadata(
-        str(upload_path),
-        sample_interval_seconds=SAMPLE_INTERVAL_SECONDS,
-    )
-    motion_series = compute_motion_series(
-        str(upload_path),
-        sample_interval_seconds=SAMPLE_INTERVAL_SECONDS,
-    )
-    predicted_segments = detect_segments(motion_series)
-
-    return {
-        "videoId": video_id,
-        "videoUrl": f"/api/videos/{video_id}{suffix}",
-        "metadata": {
-            "durationSeconds": round(metadata.duration_seconds, 3),
-            "fps": round(metadata.fps, 3),
-            "width": metadata.width,
-            "height": metadata.height,
-            "sampledFps": round(metadata.sampled_fps, 3),
-        },
-        "motionSeries": [
-            {"time": point.time, "motionScore": point.motion_score}
-            for point in motion_series
-        ],
-        "predictedSegments": [
-            {
-                "startTime": segment.start_time,
-                "endTime": segment.end_time,
-                "label": segment.label,
-            }
-            for segment in predicted_segments
-        ],
-    }
+    """Legacy synchronous analyze endpoint (blocks until complete)."""
+    video_id, upload_path, suffix = _save_upload(file)
+    return run_sync_analysis(str(upload_path), video_id, suffix)
 
 
 @app.get("/api/videos/{filename}")
 def get_video(filename: str):
-    from fastapi.responses import FileResponse
-
     file_path = UPLOAD_DIR / filename
     if not file_path.is_file():
-        from fastapi import HTTPException
-
         raise HTTPException(status_code=404, detail="Video not found")
 
     return FileResponse(file_path)
