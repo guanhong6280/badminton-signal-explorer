@@ -8,6 +8,10 @@ from fastapi.responses import FileResponse
 
 from services.job_store import create_job, get_job, job_to_response, update_job
 from services.roi import parse_roi_json
+from services.segment_settings_schema import (
+    parse_segment_settings_json,
+    segment_settings_to_dict,
+)
 from services.video_processor import process_video_job, run_sync_analysis
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -48,16 +52,22 @@ async def analyze_video_async(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     roi: str | None = Form(None),
+    segment_settings: str | None = Form(None),
 ) -> dict:
     """
     Upload a video and start analysis in the background.
     Poll GET /api/videos/jobs/{job_id} for progress and the final result.
 
-    Optional form field ``roi``: JSON string ``{"x", "y", "width", "height"}``
-    in original video pixel coordinates.
+    Optional form field ``roi``: JSON string in original video pixel coordinates.
+    Optional form field ``segment_settings``: JSON object for Segment Detector V2.
     """
     try:
         parsed_roi = parse_roi_json(roi)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        parsed_segment_settings = parse_segment_settings_json(segment_settings)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -69,6 +79,7 @@ async def analyze_video_async(
         job_id,
         video_path=str(upload_path),
         roi=parsed_roi.to_dict() if parsed_roi else None,
+        segment_settings=segment_settings_to_dict(parsed_segment_settings),
     )
 
     background_tasks.add_task(
@@ -78,6 +89,7 @@ async def analyze_video_async(
         video_id,
         suffix,
         parsed_roi,
+        parsed_segment_settings,
     )
 
     return job_to_response(get_job(job_id))

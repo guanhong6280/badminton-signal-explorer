@@ -13,6 +13,9 @@ export interface ApiVideoMetadata {
 export interface MotionSample {
   time: number;
   motion_score: number;
+  /** Present after Segment Detector V2; safe to ignore in charts. */
+  smoothed_motion_score?: number;
+  predicted_label?: "active" | "dead";
 }
 
 export interface Segment {
@@ -21,6 +24,29 @@ export interface Segment {
   label: string;
 }
 
+export interface RoiPoint {
+  x: number;
+  y: number;
+}
+
+export interface RectangleRoi {
+  type: "rectangle";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface PolygonRoi {
+  type: "polygon";
+  points: [RoiPoint, RoiPoint, RoiPoint, RoiPoint];
+}
+
+export type AnalysisRoi = RectangleRoi | PolygonRoi;
+
+export type RoiSelectionMode = "rectangle" | "polygon";
+
+/** @deprecated Use RectangleRoi with type field */
 export interface RoiRect {
   x: number;
   y: number;
@@ -35,7 +61,17 @@ export interface JobAnalysisResult {
   metadata: ApiVideoMetadata;
   motion_samples: MotionSample[];
   segments: Segment[];
-  roi?: RoiRect | null;
+  segment_settings?: SegmentDetectionSettings;
+  roi?: AnalysisRoi | null;
+}
+
+export interface SegmentDetectionSettings {
+  smoothing_window_samples: number;
+  dead_enter_threshold: number;
+  active_enter_threshold: number;
+  min_dead_duration_seconds: number;
+  min_active_duration_seconds: number;
+  merge_gap_seconds: number;
 }
 
 export interface JobState {
@@ -61,6 +97,9 @@ export interface VideoMetadata {
 export interface MotionPoint {
   time: number;
   motionScore: number;
+  /** Segment Detector V2; omitted on legacy results. */
+  smoothedMotionScore?: number;
+  predictedLabel?: "active" | "dead";
 }
 
 export interface PredictedSegment {
@@ -75,5 +114,6 @@ export interface AnalysisResult {
   metadata: VideoMetadata;
   motionSeries: MotionPoint[];
   predictedSegments: PredictedSegment[];
-  roi?: RoiRect | null;
+  segmentSettings?: SegmentDetectionSettings;
+  roi?: AnalysisRoi | null;
 }

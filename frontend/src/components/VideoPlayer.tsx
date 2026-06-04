@@ -1,15 +1,17 @@
 import { forwardRef, useState } from "react";
 
 import { RoiSelector } from "./RoiSelector";
-import type { RoiRect } from "../utils/roiCoordinates";
-import { formatRoi } from "../utils/roiCoordinates";
+import type { AnalysisRoi, RoiSelectionMode } from "../types/analysis";
+import { formatAnalysisRoi } from "../utils/roiCoordinates";
 
 interface VideoPlayerProps {
   src: string | null;
   currentTime: number;
   onTimeUpdate: (time: number) => void;
-  roi?: RoiRect | null;
-  onRoiChange?: (roi: RoiRect | null) => void;
+  roi?: AnalysisRoi | null;
+  onRoiChange?: (roi: AnalysisRoi | null) => void;
+  roiMode?: RoiSelectionMode;
+  onRoiModeChange?: (mode: RoiSelectionMode) => void;
   roiSelectionEnabled?: boolean;
   roiDisabled?: boolean;
 }
@@ -22,6 +24,8 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
       onTimeUpdate,
       roi = null,
       onRoiChange,
+      roiMode = "rectangle",
+      onRoiModeChange,
       roiSelectionEnabled = false,
       roiDisabled = false,
     },
@@ -38,7 +42,13 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
       }
     };
 
-    const showRoi = roiSelectionEnabled && src && onRoiChange;
+    // When false (e.g. after analysis), no overlay — native video controls work normally.
+    const showRoi = Boolean(roiSelectionEnabled && src && onRoiChange);
+
+    const hint =
+      roiMode === "rectangle"
+        ? "Drag on the video to draw a rectangle around the court."
+        : "Click four corners on the video to outline the court (angled view).";
 
     return (
       <section className="panel video-panel">
@@ -81,8 +91,29 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
                 }
                 onSeeked={(event) => onTimeUpdate(event.currentTarget.currentTime)}
               />
-              {showRoi && (
+              {showRoi && onRoiModeChange && (
+                <div className="roi-mode-toggle">
+                  <button
+                    type="button"
+                    className={roiMode === "rectangle" ? "active" : ""}
+                    disabled={roiDisabled}
+                    onClick={() => onRoiModeChange("rectangle")}
+                  >
+                    Rectangle
+                  </button>
+                  <button
+                    type="button"
+                    className={roiMode === "polygon" ? "active" : ""}
+                    disabled={roiDisabled}
+                    onClick={() => onRoiModeChange("polygon")}
+                  >
+                    4-point court
+                  </button>
+                </div>
+              )}
+              {showRoi && onRoiChange && (
                 <RoiSelector
+                  mode={roiMode}
                   videoElement={videoEl}
                   roi={roi}
                   onRoiChange={onRoiChange}
@@ -90,12 +121,12 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
                 />
               )}
             </div>
-            {showRoi && (
+            {showRoi && onRoiChange && (
               <div className="roi-controls">
                 <p className="roi-coords">
                   {roi
-                    ? `Selected ROI (video pixels): ${formatRoi(roi)}`
-                    : "Drag on the video to select the court area."}
+                    ? `Selected ROI (video pixels): ${formatAnalysisRoi(roi)}`
+                    : hint}
                 </p>
                 <button
                   type="button"

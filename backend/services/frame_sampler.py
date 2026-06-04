@@ -3,18 +3,25 @@ from typing import Iterator
 import cv2
 import numpy as np
 
-from services.roi import Roi, apply_roi_to_frame
+from services.roi import (
+    AnalysisRoi,
+    PolygonRoi,
+    RectangleRoi,
+    apply_rectangle_crop,
+    create_polygon_mask,
+    resize_mask_to_frame,
+)
 
 
 def sample_frames(
     video_path: str,
     sample_interval_seconds: float,
     resize_width: int = 320,
-    roi: Roi | None = None,
-) -> Iterator[tuple[float, np.ndarray]]:
+    roi: AnalysisRoi | None = None,
+) -> Iterator[tuple[float, np.ndarray, np.ndarray | None]]:
     """
-    Yield (timestamp_seconds, grayscale_frame) at a fixed time interval.
-    Frames are resized for faster downstream comparison.
+    Yield (timestamp_seconds, grayscale_frame, optional_mask) at a fixed interval.
+    Mask is 0/255, same size as grayscale, only for polygon ROI.
     """
     capture = cv2.VideoCapture(video_path)
     if not capture.isOpened():
@@ -35,9 +42,19 @@ def sample_frames(
 
             timestamp = frame_index / fps
             if timestamp + 1e-9 >= next_sample_time:
-                cropped = apply_roi_to_frame(frame, roi)
-                gray = _to_resized_grayscale(cropped, resize_width)
-                yield timestamp, gray
+                mask: np.ndarray | None = None
+
+                if roi is None:
+                    gray = _to_resized_grayscale(frame, resize_width)
+                elif isinstance(roi, RectangleRoi):
+                    cropped = apply_rectangle_crop(frame, roi)
+                    gray = _to_resized_grayscale(cropped, resize_width)
+                else:
+                    gray = _to_resized_grayscale(frame, resize_width)
+                    full_mask = create_polygon_mask(frame.shape, roi)
+                    mask = resize_mask_to_frame(full_mask, gray.shape)
+
+                yield timestamp, gray, mask
                 next_sample_time += sample_interval_seconds
 
             frame_index += 1

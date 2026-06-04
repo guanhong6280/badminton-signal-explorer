@@ -4,8 +4,13 @@ from __future__ import annotations
 
 from services.job_store import complete_job, fail_job, update_job
 from services.motion_analyzer import MotionPoint, compute_motion_series
-from services.roi import Roi, clamp_roi_to_frame
-from services.segment_detector import detect_segments
+from services.roi import AnalysisRoi, clamp_roi_to_frame
+from services.segment_detection_settings import (
+    DEFAULT_SEGMENT_DETECTION_SETTINGS,
+    SegmentDetectionSettings,
+)
+from services.segment_detector import SegmentDetectionResult, detect_segments
+from services.segment_settings_schema import segment_settings_to_dict
 from services.video_metadata import extract_video_metadata
 
 SAMPLE_INTERVAL_SECONDS = 0.5
@@ -15,9 +20,9 @@ def _build_result(
     video_id: str,
     suffix: str,
     metadata,
-    motion_series: list[MotionPoint],
-    predicted_segments,
-    roi: Roi | None = None,
+    detection: SegmentDetectionResult,
+    segment_settings: SegmentDetectionSettings,
+    roi: AnalysisRoi | None = None,
 ) -> dict:
     result: dict = {
         "video_id": video_id,
@@ -30,8 +35,13 @@ def _build_result(
             "sampled_fps": round(metadata.sampled_fps, 3),
         },
         "motion_samples": [
-            {"time": point.time, "motion_score": point.motion_score}
-            for point in motion_series
+            {
+                "time": sample.time,
+                "motion_score": sample.motion_score,
+                "smoothed_motion_score": sample.smoothed_motion_score,
+                "predicted_label": sample.predicted_label,
+            }
+            for sample in detection.samples
         ],
         "segments": [
             {
@@ -39,8 +49,9 @@ def _build_result(
                 "end_time": segment.end_time,
                 "label": segment.label,
             }
-            for segment in predicted_segments
+            for segment in detection.segments
         ],
+        "segment_settings": segment_settings_to_dict(segment_settings),
     }
     if roi is not None:
         result["roi"] = roi.to_dict()
@@ -52,7 +63,8 @@ def process_video_job(
     video_path: str,
     video_id: str,
     suffix: str,
-    roi: Roi | None = None,
+    roi: AnalysisRoi | None = None,
+    segment_settings: SegmentDetectionSettings | None = None,
 ) -> None:
     """
     Run analysis in a background task. Updates job progress; never raises.
@@ -103,7 +115,10 @@ def process_video_job(
         )
 
         set_progress(85, "Detecting segments.")
-        predicted_segments = detect_segments(motion_series)
+        effective_segment_settings = (
+            segment_settings or DEFAULT_SEGMENT_DETECTION_SETTINGS
+        )
+        detection = detect_segments(motion_series, settings=effective_segment_settings)
 
         effective_roi = roi
         if roi is not None and metadata.width > 0 and metadata.height > 0:
@@ -115,8 +130,8 @@ def process_video_job(
             video_id,
             suffix,
             metadata,
-            motion_series,
-            predicted_segments,
+            detection,
+            effective_segment_settings,
             roi=effective_roi,
         )
         complete_job(job_id, result)
@@ -138,8 +153,9 @@ def run_sync_analysis(
         upload_path,
         sample_interval_seconds=SAMPLE_INTERVAL_SECONDS,
     )
-    predicted_segments = detect_segments(motion_series)
-    built = _build_result(video_id, suffix, metadata, motion_series, predicted_segments)
+    segment_settings = DEFAULT_SEGMENT_DETECTION_SETTINGS
+    detection = detect_segments(motion_series, settings=segment_settings)
+    built = _build_result(video_id, suffix, metadata, detection, segment_settings)
     # Legacy camelCase response shape
     return {
         "videoId": built["video_id"],

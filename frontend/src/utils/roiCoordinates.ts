@@ -1,6 +1,4 @@
-import type { RoiRect } from "../types/analysis";
-
-export type { RoiRect };
+import type { AnalysisRoi, PolygonRoi, RectangleRoi, RoiPoint } from "../types/analysis";
 
 export interface ContentRect {
   offsetX: number;
@@ -52,7 +50,7 @@ export function displayToVideoCoords(
   elementHeight: number,
   videoWidth: number,
   videoHeight: number,
-): { x: number; y: number } | null {
+): RoiPoint | null {
   const content = getVideoContentRect(
     elementWidth,
     elementHeight,
@@ -69,14 +67,42 @@ export function displayToVideoCoords(
   const scaleY = videoHeight / content.height;
 
   return {
-    x: Math.round(relX * scaleX),
-    y: Math.round(relY * scaleY),
+    x: Math.round(Math.max(0, Math.min(videoWidth, relX * scaleX))),
+    y: Math.round(Math.max(0, Math.min(videoHeight, relY * scaleY))),
+  };
+}
+
+/** Map video pixel coordinates to overlay-local display coordinates. */
+export function videoToDisplayCoords(
+  videoX: number,
+  videoY: number,
+  elementWidth: number,
+  elementHeight: number,
+  videoWidth: number,
+  videoHeight: number,
+): RoiPoint | null {
+  const content = getVideoContentRect(
+    elementWidth,
+    elementHeight,
+    videoWidth,
+    videoHeight,
+  );
+  if (!content) {
+    return null;
+  }
+
+  const scaleX = content.width / videoWidth;
+  const scaleY = content.height / videoHeight;
+
+  return {
+    x: content.offsetX + videoX * scaleX,
+    y: content.offsetY + videoY * scaleY,
   };
 }
 
 /** Map video ROI to overlay-local CSS pixels for drawing the selection box. */
 export function videoRoiToDisplayStyle(
-  roi: RoiRect,
+  roi: RectangleRoi,
   elementWidth: number,
   elementHeight: number,
   videoWidth: number,
@@ -111,12 +137,13 @@ export function normalizeVideoRoi(
   y2: number,
   videoWidth: number,
   videoHeight: number,
-): RoiRect {
+): RectangleRoi {
   const left = Math.max(0, Math.min(x1, x2));
   const top = Math.max(0, Math.min(y1, y2));
   const right = Math.min(videoWidth, Math.max(x1, x2));
   const bottom = Math.min(videoHeight, Math.max(y1, y2));
   return {
+    type: "rectangle",
     x: Math.round(left),
     y: Math.round(top),
     width: Math.max(1, Math.round(right - left)),
@@ -124,6 +151,39 @@ export function normalizeVideoRoi(
   };
 }
 
-export function formatRoi(roi: RoiRect): string {
-  return `x=${roi.x}, y=${roi.y}, w=${roi.width}, h=${roi.height}`;
+export function clampPolygonPoints(
+  points: RoiPoint[],
+  videoWidth: number,
+  videoHeight: number,
+): [RoiPoint, RoiPoint, RoiPoint, RoiPoint] {
+  const clamped = points.slice(0, 4).map((p) => ({
+    x: Math.round(Math.max(0, Math.min(videoWidth, p.x))),
+    y: Math.round(Math.max(0, Math.min(videoHeight, p.y))),
+  }));
+  while (clamped.length < 4) {
+    clamped.push({ x: 0, y: 0 });
+  }
+  return clamped as [RoiPoint, RoiPoint, RoiPoint, RoiPoint];
+}
+
+export function formatAnalysisRoi(roi: AnalysisRoi): string {
+  if (roi.type === "rectangle") {
+    return `rectangle: x=${roi.x}, y=${roi.y}, w=${roi.width}, h=${roi.height}`;
+  }
+  const pts = roi.points.map((p) => `(${p.x}, ${p.y})`).join(" → ");
+  return `polygon: ${pts}`;
+}
+
+export function polygonDisplayPoints(
+  roi: PolygonRoi,
+  elementWidth: number,
+  elementHeight: number,
+  videoWidth: number,
+  videoHeight: number,
+): RoiPoint[] {
+  return roi.points
+    .map((p) =>
+      videoToDisplayCoords(p.x, p.y, elementWidth, elementHeight, videoWidth, videoHeight),
+    )
+    .filter((p): p is RoiPoint => p !== null);
 }

@@ -3,6 +3,7 @@ interface VideoUploaderProps {
   onAnalyze: () => void;
   hasVideo: boolean;
   isProcessing: boolean;
+  analyzeDisabled?: boolean;
   progress?: number;
   progressMessage?: string;
   showNoRoiWarning?: boolean;
@@ -13,6 +14,7 @@ export function VideoUploader({
   onAnalyze,
   hasVideo,
   isProcessing,
+  analyzeDisabled = false,
   progress = 0,
   progressMessage,
   showNoRoiWarning = false,
@@ -48,7 +50,7 @@ export function VideoUploader({
       <button
         type="button"
         className="analyze-btn"
-        disabled={!hasVideo || isProcessing}
+        disabled={!hasVideo || isProcessing || analyzeDisabled}
         onClick={onAnalyze}
       >
         {isProcessing ? "Analyzing..." : "Analyze"}

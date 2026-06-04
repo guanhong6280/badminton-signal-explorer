@@ -8,10 +8,22 @@ import {
 } from "./api/analysisApi";
 import { AnalysisTable } from "./components/AnalysisTable";
 import { MotionChart } from "./components/MotionChart";
+import { SegmentSettingsPanel } from "./components/SegmentSettingsPanel";
 import { VideoPlayer } from "./components/VideoPlayer";
 import { VideoTimeline } from "./components/VideoTimeline";
 import { VideoUploader } from "./components/VideoUploader";
-import type { AnalysisResult, JobState, JobStatus, RoiRect } from "./types/analysis";
+import {
+  DEFAULT_SEGMENT_DETECTION_SETTINGS,
+  validateSegmentSettings,
+} from "./constants/segmentSettings";
+import type {
+  AnalysisResult,
+  AnalysisRoi,
+  JobState,
+  JobStatus,
+  RoiSelectionMode,
+  SegmentDetectionSettings,
+} from "./types/analysis";
 import "./App.css";
 
 const ACTIVE_JOB_STATUSES: JobStatus[] = ["queued", "processing"];
@@ -26,17 +38,25 @@ function App() {
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [localVideoUrl, setLocalVideoUrl] = useState<string | null>(null);
-  const [roi, setRoi] = useState<RoiRect | null>(null);
+  const [roi, setRoi] = useState<AnalysisRoi | null>(null);
+  const [roiMode, setRoiMode] = useState<RoiSelectionMode>("rectangle");
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobState, setJobState] = useState<JobState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [segmentSettings, setSegmentSettings] =
+    useState<SegmentDetectionSettings>(DEFAULT_SEGMENT_DETECTION_SETTINGS);
+
+  const segmentSettingsError = validateSegmentSettings(segmentSettings);
 
   const durationSeconds = analysis?.metadata.durationSeconds ?? 0;
   const videoSrc = analysis?.videoUrl ?? localVideoUrl;
-  const canSelectRoi = Boolean(selectedFile && localVideoUrl && !isProcessing);
+  /** ROI UI only before the first successful analysis; playback-only after results. */
+  const isPreAnalysisSetup =
+    Boolean(selectedFile && localVideoUrl) && !isProcessing && analysis === null;
+  const canSelectRoi = isPreAnalysisSetup;
 
   const seekTo = (time: number) => {
     setCurrentTime(time);
@@ -129,7 +149,11 @@ function App() {
     pollGenerationRef.current += 1;
 
     try {
-      const initialJob = await startVideoAnalysis(selectedFile, roi);
+      const initialJob = await startVideoAnalysis(
+        selectedFile,
+        roi,
+        segmentSettings,
+      );
       setJobState(initialJob);
       setJobId(initialJob.job_id);
 
@@ -166,9 +190,16 @@ function App() {
         onAnalyze={handleAnalyze}
         hasVideo={selectedFile !== null}
         isProcessing={isProcessing}
+        analyzeDisabled={segmentSettingsError !== null}
         progress={showProgress ? jobState.progress : 0}
         progressMessage={showProgress ? jobState.message : undefined}
-        showNoRoiWarning={selectedFile !== null && !roi && !isProcessing}
+        showNoRoiWarning={isPreAnalysisSetup && !roi}
+      />
+
+      <SegmentSettingsPanel
+        settings={segmentSettings}
+        onChange={setSegmentSettings}
+        disabled={isProcessing}
       />
 
       <div className="layout-grid">
@@ -179,6 +210,11 @@ function App() {
           onTimeUpdate={setCurrentTime}
           roi={roi}
           onRoiChange={setRoi}
+          roiMode={roiMode}
+          onRoiModeChange={(mode) => {
+            setRoiMode(mode);
+            setRoi(null);
+          }}
           roiSelectionEnabled={canSelectRoi}
           roiDisabled={isProcessing}
         />
@@ -191,6 +227,8 @@ function App() {
 
         <MotionChart
           motionSeries={analysis?.motionSeries ?? []}
+          predictedSegments={analysis?.predictedSegments ?? []}
+          segmentSettings={analysis?.segmentSettings}
           onPointSelect={seekTo}
         />
 

@@ -1,8 +1,9 @@
 import type {
   AnalysisResult,
+  AnalysisRoi,
   JobAnalysisResult,
   JobState,
-  RoiRect,
+  SegmentDetectionSettings,
 } from "../types/analysis";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
@@ -34,24 +35,31 @@ export function jobResultToAnalysisResult(result: JobAnalysisResult): AnalysisRe
     motionSeries: result.motion_samples.map((sample) => ({
       time: sample.time,
       motionScore: sample.motion_score,
+      smoothedMotionScore: sample.smoothed_motion_score,
+      predictedLabel: sample.predicted_label,
     })),
     predictedSegments: result.segments.map((segment) => ({
       startTime: segment.start_time,
       endTime: segment.end_time,
       label: segment.label,
     })),
+    segmentSettings: result.segment_settings,
     roi: result.roi ?? null,
   };
 }
 
 export async function startVideoAnalysis(
   file: File,
-  roi?: RoiRect | null,
+  roi?: AnalysisRoi | null,
+  segmentSettings?: SegmentDetectionSettings | null,
 ): Promise<JobState> {
   const formData = new FormData();
   formData.append("file", file);
   if (roi) {
     formData.append("roi", JSON.stringify(roi));
+  }
+  if (segmentSettings) {
+    formData.append("segment_settings", JSON.stringify(segmentSettings));
   }
 
   const response = await fetch(resolveApiUrl("/api/videos/analyze"), {
